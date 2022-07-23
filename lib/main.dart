@@ -1,115 +1,220 @@
 import 'package:flutter/material.dart';
 
+import 'package:flutter_floatwing/flutter_floatwing.dart';
+import 'package:screen_recorder/views/assistive_touch.dart';
+import 'package:screen_recorder/views/night.dart';
+import 'package:screen_recorder/views/normal.dart';
+
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+@pragma("vm:entry-point")
+void floatwing() {
+  runApp(((_) => NonrmalView()).floatwing().make());
+}
 
-  // This widget is the root of your application.
+void floatwing2(Window w) {
+  runApp(MaterialApp(
+    // floatwing on widget can't use Window.of(context)
+    // to access window instance
+    // should use FloatwingPlugin().currentWindow
+    home: NonrmalView().floatwing(),
+  ));
+}
+
+class MyApp extends StatefulWidget {
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
-  }
+  _MyAppState createState() => _MyAppState();
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({Key? key, required this.title}) : super(key: key);
+class _MyAppState extends State<MyApp> {
+  var _configs = [
+       WindowConfig(
+      id: "normal",
+      // entry: "floatwing",
+      route: "/normal",
+      draggable: true,
+    ),
+    WindowConfig(
+      id: "assitive_touch",
+      // entry: "floatwing",
+      route: "/assitive_touch",
+      draggable: true,
+    ),
+      WindowConfig(
+      id: "night",
+      // entry: "floatwing",
+      route: "/night",
+      width: WindowSize.MatchParent, height: WindowSize.MatchParent,
+      clickable: false,
+    )
+  ];
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
+  Map<String, WidgetBuilder> _builders = {
+    "normal": (_) => NonrmalView(),
+    "assitive_touch": (_) => AssistiveTouch(),
+    "night": (_) => NightView(),
+  };
 
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+  Map<String, Widget Function(BuildContext)> _routes = {};
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
+  void initState() {
+    super.initState();
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+    _routes["/"] = (_) => HomePage(configs: _configs);
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+    _configs.forEach((c) => {
+      if (c.route != null && _builders[c.id] != null)
+        {_routes[c.route!] = _builders[c.id]!.floatwing(debug: false)}
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      initialRoute: "/",
+      routes: _routes,
+    );
+  }
+}
+
+class HomePage extends StatefulWidget {
+  final List<WindowConfig> configs;
+  const HomePage({Key? key, required this.configs}) : super(key: key);
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    super.initState();
+
+    widget.configs.forEach((c) => _windows.add(c.to()));
+
+    FloatwingPlugin().initialize();
+
+    initAsyncState();
+  }
+
+  List<Window> _windows = [];
+
+  Map<Window, bool> _readys = {};
+
+  bool _ready = false;
+
+  initAsyncState() async {
+    var p1 = await FloatwingPlugin().checkPermission();
+    var p2 = await FloatwingPlugin().isServiceRunning();
+
+    // get permission first
+    if (!p1) {
+      FloatwingPlugin().openPermissionSetting();
+      return;
+    }
+
+    // start service
+    if (!p2) {
+      FloatwingPlugin().startService();
+    }
+
+    _createWindows();
+
+    setState(() {
+      _ready = true;
+    });
+  }
+
+  _createWindows() async {
+    await FloatwingPlugin().isServiceRunning().then((v) async {
+      if (!v)
+        await FloatwingPlugin().startService().then((_) {
+          print("start the backgroud service success.");
+        });
+    });
+
+    _windows.forEach((w) {
+      var _w = FloatwingPlugin().windows[w.id];
+      if (null != _w) {
+        // replace w with _w
+        _readys[w] = true;
+        return;
+      }
+      w.on(EventType.WindowCreated, (window, data) {
+        _readys[window] = true;
+        setState(() {});
+      }).create();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('Floatwing example app'),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
-        ),
+      body: _ready
+          ? ListView(
+        children: _windows.map((e) => _item(e)).toList(),
+      )
+          : Center(
+        child: ElevatedButton(
+            onPressed: () {
+              initAsyncState();
+            },
+            child: Text("Start")),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+    );
+  }
+
+  _debug(Window w) {
+    Navigator.of(context).pushNamed(w.config!.route!);
+  }
+
+  Widget _item(Window w) {
+    return Card(
+      margin: EdgeInsets.all(10),
+      child: Padding(
+          padding: EdgeInsets.all(10),
+          child: Column(
+            children: [
+              Text(w.id,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                    color: Color.fromARGB(255, 214, 213, 213),
+                    borderRadius: BorderRadius.all(Radius.circular(4))),
+                child: Text(w.config?.toString() ?? ""),
+              ),
+              SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: (_readys[w] == true) ? () => w.start() : null,
+                    child: Text("Open"),
+                  ),
+                  TextButton(
+                      onPressed:
+                      w.config?.route != null ? () => _debug(w) : null,
+                      child: Text("Debug")),
+                  TextButton(
+                    onPressed: (_readys[w] == true)
+                        ? () => {w.close(), w.share("close")}
+                        : null,
+                    child: Text("Close", style: TextStyle(color: Colors.red)),
+                  ),
+                ],
+              )
+            ],
+          )),
     );
   }
 }
