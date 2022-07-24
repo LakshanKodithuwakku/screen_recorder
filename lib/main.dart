@@ -2,59 +2,30 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_floatwing/flutter_floatwing.dart';
 import 'package:screen_recorder/views/assistive_touch.dart';
-import 'package:screen_recorder/views/night.dart';
-import 'package:screen_recorder/views/normal.dart';
 
 void main() {
   runApp(MyApp());
 }
 
-@pragma("vm:entry-point")
-void floatwing() {
-  runApp(((_) => NonrmalView()).floatwing().make());
-}
-
-void floatwing2(Window w) {
-  runApp(MaterialApp(
-    // floatwing on widget can't use Window.of(context)
-    // to access window instance
-    // should use FloatwingPlugin().currentWindow
-    home: NonrmalView().floatwing(),
-  ));
-}
-
 class MyApp extends StatefulWidget {
   @override
-  _MyAppState createState() => _MyAppState();
+  _MyAppState createState(){
+     return _MyAppState();
+  }
 }
 
 class _MyAppState extends State<MyApp> {
   var _configs = [
-       WindowConfig(
-      id: "normal",
-      // entry: "floatwing",
-      route: "/normal",
-      draggable: true,
-    ),
     WindowConfig(
       id: "assitive_touch",
       // entry: "floatwing",
       route: "/assitive_touch",
       draggable: true,
     ),
-      WindowConfig(
-      id: "night",
-      // entry: "floatwing",
-      route: "/night",
-      width: WindowSize.MatchParent, height: WindowSize.MatchParent,
-      clickable: false,
-    )
   ];
 
   Map<String, WidgetBuilder> _builders = {
-    "normal": (_) => NonrmalView(),
     "assitive_touch": (_) => AssistiveTouch(),
-    "night": (_) => NightView(),
   };
 
   Map<String, Widget Function(BuildContext)> _routes = {};
@@ -62,13 +33,11 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-
     _routes["/"] = (_) => HomePage(configs: _configs);
-
     _configs.forEach((c) => {
-      if (c.route != null && _builders[c.id] != null)
-        {_routes[c.route!] = _builders[c.id]!.floatwing(debug: false)}
-    });
+          if (c.route != null && _builders[c.id] != null)
+            {_routes[c.route!] = _builders[c.id]!.floatwing(debug: false)}
+        });
   }
 
   @override
@@ -154,67 +123,46 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Floatwing example app'),
-      ),
+      backgroundColor: Colors.transparent,
       body: _ready
-          ? ListView(
-        children: _windows.map((e) => _item(e)).toList(),
-      )
+          ? Center(
+            child: ListView(
+                children: _windows.map((e) => _item(e)).toList(),
+              ),
+          )
           : Center(
-        child: ElevatedButton(
-            onPressed: () {
-              initAsyncState();
-            },
-            child: Text("Start")),
-      ),
+              child: ElevatedButton(
+                  onPressed: () {
+                    initAsyncState();
+                  },
+                  child: Text("Start")),
+            ),
     );
   }
 
-  _debug(Window w) {
-    Navigator.of(context).pushNamed(w.config!.route!);
-  }
-
   Widget _item(Window w) {
-    return Card(
-      margin: EdgeInsets.all(10),
-      child: Padding(
-          padding: EdgeInsets.all(10),
-          child: Column(
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Card(
+          margin: EdgeInsets.all(10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(w.id,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                    color: Color.fromARGB(255, 214, 213, 213),
-                    borderRadius: BorderRadius.all(Radius.circular(4))),
-                child: Text(w.config?.toString() ?? ""),
+              TextButton(
+                onPressed: (_readys[w] == true) ? () => w.start() : null,
+                child: Text("Open"),
               ),
-              SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: (_readys[w] == true) ? () => w.start() : null,
-                    child: Text("Open"),
-                  ),
-                  TextButton(
-                      onPressed:
-                      w.config?.route != null ? () => _debug(w) : null,
-                      child: Text("Debug")),
-                  TextButton(
-                    onPressed: (_readys[w] == true)
-                        ? () => {w.close(), w.share("close")}
-                        : null,
-                    child: Text("Close", style: TextStyle(color: Colors.red)),
-                  ),
-                ],
-              )
+              TextButton(
+                onPressed: (_readys[w] == true)
+                    ? () => {w.close(), w.share("close")}
+                    : null,
+                child: Text("Close", style: TextStyle(color: Colors.red)),
+              ),
             ],
-          )),
+          ),
+        ),
+      ],
     );
   }
 }
